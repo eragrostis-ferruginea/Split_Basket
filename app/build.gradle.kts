@@ -1,7 +1,12 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.google.services)
     id("com.diffplug.spotless")
+}
+
+// Conditionally apply Google Services plugin only if google-services.json exists
+val googleServicesFile = file("google-services.json")
+if (googleServicesFile.exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {
@@ -33,11 +38,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    java {
-        toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
-        }
-    }
     lint {
         disable += "PropertyEscape"
     }
@@ -63,6 +63,8 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     // 添加WorkManager依赖
     implementation(libs.work.runtime)
+    // WorkManager依赖Guava的ListenableFuture（使用兼容Android的版本）
+    implementation("com.google.guava:guava:32.0.1-android")
     // 添加Firebase依赖（使用BOM）
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
