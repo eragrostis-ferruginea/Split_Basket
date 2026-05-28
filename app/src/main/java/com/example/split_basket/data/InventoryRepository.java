@@ -7,6 +7,8 @@ import androidx.lifecycle.LiveData;
 
 import com.example.split_basket.EventLogManager;
 import com.example.split_basket.InventoryItem;
+import com.example.split_basket.sync.SyncRepository;
+import com.example.split_basket.sync.SyncStatus;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -87,6 +89,8 @@ public class InventoryRepository {
 
     public Future<Void> addItem(@NonNull InventoryItem item) {
         return executorService.submit(() -> {
+            item.setSyncStatus(SyncStatus.PENDING_CREATE);
+            item.setLastModified(System.currentTimeMillis());
             inventoryDao.insert(item);
             // Add log record
             eventLogManager.addLog(
@@ -94,12 +98,16 @@ public class InventoryRepository {
                     item.name + " x" + item.quantity + " | " + item.category,
                     "xxx" // Default user
             );
+            // Trigger background sync
+            triggerSync();
             return null;
         });
     }
 
     public void updateItem(@NonNull InventoryItem updated) {
         executorService.execute(() -> {
+            updated.setSyncStatus(SyncStatus.PENDING_UPLOAD);
+            updated.setLastModified(System.currentTimeMillis());
             inventoryDao.update(updated);
             // Add log record
             eventLogManager.addLog(
@@ -107,6 +115,7 @@ public class InventoryRepository {
                     updated.name + " x" + updated.quantity + " | " + updated.category,
                     "xxx" // Default user
             );
+            triggerSync();
         });
     }
 
@@ -114,17 +123,30 @@ public class InventoryRepository {
         executorService.execute(() -> {
             // Get the item first to log details
             InventoryItem item = inventoryDao.getItemById(id);
-            inventoryDao.deleteById(id);
-
-            // Add log record
             if (item != null) {
+                item.setSyncStatus(SyncStatus.PENDING_DELETE);
+                item.setLastModified(System.currentTimeMillis());
+                // For delete, we mark and then delete locally
+                inventoryDao.deleteById(id);
                 eventLogManager.addLog(
                         EventLogManager.EVENT_TYPE_INVENTORY_REMOVE,
                         item.name + " x" + item.quantity + " | " + item.category,
                         "xxx" // Default user
                 );
+                triggerSync();
+            } else {
+                inventoryDao.deleteById(id);
             }
         });
+    }
+
+    private void triggerSync() {
+        try {
+            SyncRepository.getInstance(appContext).triggerImmediateSync();
+        } catch (Exception e) {
+            // Sync is best-effort; don't crash if Firebase isn't configured
+            e.printStackTrace();
+        }
     }
 
     public void clearAll() {

@@ -7,10 +7,15 @@ import androidx.room.Entity;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
+import com.example.split_basket.sync.SyncStatus;
+import com.example.split_basket.sync.Syncable;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 @Entity(tableName = "shopping_items")
-public class ShoppingItem {
+public class ShoppingItem implements Syncable {
 
     @PrimaryKey(autoGenerate = true)
     private long id;
@@ -36,8 +41,22 @@ public class ShoppingItem {
     @ColumnInfo(name = "inventory_item_id")
     private String inventoryItemId;
 
+    @ColumnInfo(name = "sync_status")
+    @NonNull
+    private SyncStatus syncStatus = SyncStatus.PENDING_CREATE;
+
+    @ColumnInfo(name = "last_modified")
+    private long lastModified = System.currentTimeMillis();
+
+    @NonNull
+    @ColumnInfo(name = "sync_id")
+    private String syncId = "";
+
     public ShoppingItem() {
         // Required by Room
+        this.syncStatus = SyncStatus.PENDING_CREATE;
+        this.lastModified = System.currentTimeMillis();
+        this.syncId = "";
     }
 
     @Ignore
@@ -46,6 +65,9 @@ public class ShoppingItem {
         this.addedBy = addedBy;
         this.quantity = Math.max(1, quantity);
         this.createdAt = System.currentTimeMillis();
+        this.syncStatus = SyncStatus.PENDING_CREATE;
+        this.lastModified = System.currentTimeMillis();
+        this.syncId = java.util.UUID.randomUUID().toString();
     }
 
     public long getId() {
@@ -105,6 +127,58 @@ public class ShoppingItem {
 
     public void setInventoryItemId(@Nullable String inventoryItemId) {
         this.inventoryItemId = inventoryItemId;
+    }
+
+    @NonNull
+    public String getSyncId() {
+        return syncId;
+    }
+
+    public void setSyncId(@NonNull String syncId) {
+        this.syncId = syncId;
+    }
+
+    // ==================== Syncable Implementation ====================
+
+    @Override
+    public SyncStatus getSyncStatus() {
+        return syncStatus;
+    }
+
+    @Override
+    public void setSyncStatus(SyncStatus syncStatus) {
+        this.syncStatus = syncStatus;
+    }
+
+    @Override
+    public long getLastModified() {
+        return lastModified;
+    }
+
+    @Override
+    public void setLastModified(long timestamp) {
+        this.lastModified = timestamp;
+    }
+
+    @Override
+    public String getFirestoreCollection() {
+        return "shopping_items";
+    }
+
+    @Override
+    public Map<String, Object> toFirestoreMap() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("syncId", syncId);
+        map.put("id", id);
+        map.put("name", name);
+        map.put("addedBy", addedBy);
+        map.put("quantity", quantity);
+        map.put("purchased", purchased);
+        map.put("createdAt", createdAt);
+        map.put("inventoryItemId", inventoryItemId);
+        map.put("syncStatus", syncStatus != null ? syncStatus.name() : SyncStatus.PENDING_CREATE.name());
+        map.put("lastModified", lastModified);
+        return map;
     }
 
     @Override

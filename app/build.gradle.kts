@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.google.services)
     id("com.diffplug.spotless")
 }
 
@@ -60,6 +61,11 @@ dependencies {
     implementation("com.google.mlkit:image-labeling:17.0.7")
     // 添加TensorFlow Lite Interpreter dependencies
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    // 添加WorkManager依赖
+    implementation(libs.work.runtime)
+    // 添加Firebase依赖（使用BOM）
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

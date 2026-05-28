@@ -1,11 +1,18 @@
 package com.example.split_basket;
 
 import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
+import com.example.split_basket.sync.SyncStatus;
+import com.example.split_basket.sync.Syncable;
+
+import java.util.HashMap;
+import java.util.Map;
+
 @Entity(tableName = "inventory_items")
-public class InventoryItem {
+public class InventoryItem implements Syncable {
     @PrimaryKey
     @NonNull
     public String id;
@@ -16,8 +23,17 @@ public class InventoryItem {
     public long createdAtMillis;
     public String photoUri; // Added: nullable photo URI
 
+    @ColumnInfo(name = "sync_status")
+    @NonNull
+    private SyncStatus syncStatus = SyncStatus.PENDING_CREATE;
+
+    @ColumnInfo(name = "last_modified")
+    private long lastModified = System.currentTimeMillis();
+
     // Default constructor for Room
     public InventoryItem() {
+        this.syncStatus = SyncStatus.PENDING_CREATE;
+        this.lastModified = System.currentTimeMillis();
     }
 
     // Constructor without photoUri (compatible with existing code)
@@ -96,4 +112,51 @@ public class InventoryItem {
         }
     }
 
+    // ==================== Syncable Implementation ====================
+
+    @Override
+    public String getSyncId() {
+        return id;
+    }
+
+    @NonNull
+    @Override
+    public SyncStatus getSyncStatus() {
+        return syncStatus;
+    }
+
+    @Override
+    public void setSyncStatus(SyncStatus syncStatus) {
+        this.syncStatus = syncStatus;
+    }
+
+    @Override
+    public long getLastModified() {
+        return lastModified;
+    }
+
+    @Override
+    public void setLastModified(long timestamp) {
+        this.lastModified = timestamp;
+    }
+
+    @Override
+    public String getFirestoreCollection() {
+        return "inventory_items";
+    }
+
+    @Override
+    public Map<String, Object> toFirestoreMap() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", id);
+        map.put("name", name);
+        map.put("quantity", quantity);
+        map.put("category", category);
+        map.put("expireDateMillis", expireDateMillis);
+        map.put("createdAtMillis", createdAtMillis);
+        map.put("photoUri", photoUri);
+        map.put("syncStatus", syncStatus != null ? syncStatus.name() : SyncStatus.PENDING_CREATE.name());
+        map.put("lastModified", lastModified);
+        return map;
+    }
 }

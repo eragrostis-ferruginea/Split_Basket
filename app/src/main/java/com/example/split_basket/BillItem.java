@@ -4,18 +4,24 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.TypeConverter;
 import androidx.room.TypeConverters;
 
+import com.example.split_basket.sync.SyncStatus;
+import com.example.split_basket.sync.Syncable;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Entity(tableName = "bills")
 @TypeConverters({BillItem.Converters.class})
-public class BillItem implements Parcelable {
+public class BillItem implements Parcelable, Syncable {
     public static final Creator<BillItem> CREATOR = new Creator<BillItem>() {
         @Override
         public BillItem createFromParcel(Parcel in) {
@@ -37,6 +43,13 @@ public class BillItem implements Parcelable {
     private List<String> participants;
     private List<Double> customAmounts; // Used to store custom amounts
     private String creationDate; // Bill creation date
+
+    @ColumnInfo(name = "sync_status")
+    @NonNull
+    private SyncStatus syncStatus = SyncStatus.PENDING_CREATE;
+
+    @ColumnInfo(name = "last_modified")
+    private long lastModified = System.currentTimeMillis();
 
     public BillItem(String id, String name, String amount, String status, String method, String creationDate) {
         this.id = id;
@@ -134,6 +147,56 @@ public class BillItem implements Parcelable {
 
     public void addCustomAmount(double amount) {
         this.customAmounts.add(amount);
+    }
+
+    // ==================== Syncable Implementation ====================
+
+    @NonNull
+    @Override
+    public String getSyncId() {
+        return id;
+    }
+
+    @NonNull
+    @Override
+    public SyncStatus getSyncStatus() {
+        return syncStatus;
+    }
+
+    @Override
+    public void setSyncStatus(SyncStatus syncStatus) {
+        this.syncStatus = syncStatus;
+    }
+
+    @Override
+    public long getLastModified() {
+        return lastModified;
+    }
+
+    @Override
+    public void setLastModified(long timestamp) {
+        this.lastModified = timestamp;
+    }
+
+    @Override
+    public String getFirestoreCollection() {
+        return "bills";
+    }
+
+    @Override
+    public Map<String, Object> toFirestoreMap() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", id);
+        map.put("name", name);
+        map.put("amount", amount);
+        map.put("status", status);
+        map.put("method", method);
+        map.put("participants", participants);
+        map.put("customAmounts", customAmounts);
+        map.put("creationDate", creationDate);
+        map.put("syncStatus", syncStatus != null ? syncStatus.name() : SyncStatus.PENDING_CREATE.name());
+        map.put("lastModified", lastModified);
+        return map;
     }
 
     // Calculate average amount

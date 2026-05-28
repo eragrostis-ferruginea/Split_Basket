@@ -10,6 +10,8 @@ import com.example.split_basket.EventLogManager;
 import com.example.split_basket.R;
 import com.example.split_basket.ShoppingItem;
 import com.example.split_basket.callback.OperationCallback;
+import com.example.split_basket.sync.SyncRepository;
+import com.example.split_basket.sync.SyncStatus;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -75,21 +77,27 @@ public class ShoppingListRepository {
                         appContext.getString(R.string.error_item_duplicate_with_user, name, addedBy));
                 return;
             }
+            item.setSyncStatus(SyncStatus.PENDING_CREATE);
+            item.setLastModified(System.currentTimeMillis());
             shoppingListDao.insert(item);
             // Add log record
             eventLogManager.addLog(EventLogManager.EVENT_TYPE_SHOPPING_LIST_ADD, item.getName(), item.getQuantity(),
                     "");
             notifyCallback(callback, true,
                     appContext.getString(R.string.item_added_success, name));
+            triggerSync();
         });
     }
 
     public void updateItem(@NonNull ShoppingItem item) {
         executorService.execute(() -> {
+            item.setSyncStatus(SyncStatus.PENDING_UPLOAD);
+            item.setLastModified(System.currentTimeMillis());
             shoppingListDao.update(item);
             // Add log record
             eventLogManager.addLog(EventLogManager.EVENT_TYPE_SHOPPING_LIST_UPDATE, item.getName(), item.getQuantity(),
                     "");
+            triggerSync();
         });
     }
 
@@ -99,22 +107,39 @@ public class ShoppingListRepository {
         executorService.execute(() -> {
             // Get information of items marked as purchased
             List<ShoppingItem> items = shoppingListDao.getItemsByIds(ids);
+            for (ShoppingItem item : items) {
+                item.setSyncStatus(SyncStatus.PENDING_UPLOAD);
+                item.setLastModified(System.currentTimeMillis());
+            }
             shoppingListDao.markPurchasedByIds(ids);
             // Add log record for each item
             for (ShoppingItem item : items) {
                 eventLogManager.addLog(EventLogManager.EVENT_TYPE_SHOPPING_LIST_PURCHASE, item.getName(),
                         item.getQuantity(), "");
             }
+            triggerSync();
         });
     }
 
     public void deleteItem(@NonNull ShoppingItem item) {
         executorService.execute(() -> {
+            item.setSyncStatus(SyncStatus.PENDING_DELETE);
+            item.setLastModified(System.currentTimeMillis());
             shoppingListDao.delete(item);
             // Add log record
             eventLogManager.addLog(EventLogManager.EVENT_TYPE_SHOPPING_LIST_REMOVE, item.getName(), item.getQuantity(),
                     "");
+            triggerSync();
         });
+    }
+
+    private void triggerSync() {
+        try {
+            SyncRepository.getInstance(appContext).triggerImmediateSync();
+        } catch (Exception e) {
+            // Sync is best-effort
+            e.printStackTrace();
+        }
     }
 
     public List<ShoppingItem> getPurchasedItems() {

@@ -8,6 +8,8 @@ import androidx.lifecycle.LiveData;
 
 import com.example.split_basket.BillItem;
 import com.example.split_basket.EventLogManager;
+import com.example.split_basket.sync.SyncRepository;
+import com.example.split_basket.sync.SyncStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -147,18 +149,24 @@ public class BillRepository {
 
     public void addBill(@NonNull BillItem bill) {
         executorService.execute(() -> {
+            bill.setSyncStatus(SyncStatus.PENDING_CREATE);
+            bill.setLastModified(System.currentTimeMillis());
             billDao.insert(bill);
             // Add log record
             eventLogManager.addLog(EventLogManager.EVENT_TYPE_BILL_ADD, bill.getName() + " - " + bill.getAmount(), "");
+            triggerSync();
         });
     }
 
     public void updateBill(@NonNull BillItem updatedBill) {
         executorService.execute(() -> {
+            updatedBill.setSyncStatus(SyncStatus.PENDING_UPLOAD);
+            updatedBill.setLastModified(System.currentTimeMillis());
             billDao.update(updatedBill);
             // Add log record
             eventLogManager.addLog(EventLogManager.EVENT_TYPE_BILL_UPDATE,
                     updatedBill.getName() + " - " + updatedBill.getAmount(), "");
+            triggerSync();
         });
     }
 
@@ -167,12 +175,24 @@ public class BillRepository {
             // First record the information of the bill to be deleted
             BillItem deletedBill = billDao.getBillById(billId);
             if (deletedBill != null) {
+                deletedBill.setSyncStatus(SyncStatus.PENDING_DELETE);
+                deletedBill.setLastModified(System.currentTimeMillis());
                 billDao.deleteById(billId);
                 // Record deletion log
                 eventLogManager.addLog(EventLogManager.EVENT_TYPE_BILL_REMOVE,
                         deletedBill.getName() + " - " + deletedBill.getAmount(), "");
+                triggerSync();
             }
         });
+    }
+
+    private void triggerSync() {
+        try {
+            SyncRepository.getInstance(appContext).triggerImmediateSync();
+        } catch (Exception e) {
+            // Sync is best-effort
+            e.printStackTrace();
+        }
     }
 
     public void clearAllBills() {

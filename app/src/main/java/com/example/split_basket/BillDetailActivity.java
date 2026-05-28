@@ -12,6 +12,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.split_basket.data.BillRepository;
+import com.example.split_basket.data.DebtSimplifier;
+import com.example.split_basket.data.SettlementPlan;
 import com.google.android.material.button.MaterialButton;
 
 import java.text.DecimalFormat;
@@ -220,10 +222,76 @@ public class BillDetailActivity extends AppCompatActivity {
 
             // Add participants information
             addParticipants();
+
+            // Show optimized settlement using graph algorithm
+            showOptimizedSettlement();
         } catch (Exception e) {
             e.printStackTrace();
             Toast.makeText(this, "Error loading bill details", Toast.LENGTH_SHORT).show();
             finish(); // Close page on error
+        }
+    }
+
+    private void showOptimizedSettlement() {
+        try {
+            LinearLayout settlementContainer = findViewById(R.id.settlementContainer);
+            TextView tvSummary = findViewById(R.id.tvSettlementSummary);
+            if (settlementContainer == null || tvSummary == null) return;
+
+            settlementContainer.removeAllViews();
+
+            // Compute optimized settlement using graph theory algorithm
+            SettlementPlan plan = DebtSimplifier.optimizeFromBill(currentBill);
+
+            if (plan.getTransactions() == null || plan.getTransactions().isEmpty()) {
+                tvSummary.setText("All settled — no transactions needed.");
+                return;
+            }
+
+            tvSummary.setText(plan.getSummary());
+
+            for (SettlementPlan.Transaction tx : plan.getTransactions()) {
+                LinearLayout row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setPadding(8, 8, 8, 8);
+
+                TextView tvFrom = new TextView(this);
+                tvFrom.setLayoutParams(new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+                tvFrom.setText(tx.getFrom());
+                tvFrom.setTextSize(14);
+
+                TextView tvArrow = new TextView(this);
+                tvArrow.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                tvArrow.setText(" → ");
+                tvArrow.setTextSize(14);
+
+                TextView tvTo = new TextView(this);
+                tvTo.setLayoutParams(new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+                tvTo.setText(tx.getTo());
+                tvTo.setTextSize(14);
+
+                TextView tvAmount = new TextView(this);
+                tvAmount.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                tvAmount.setText(String.format("¥ %.2f", tx.getAmount()));
+                tvAmount.setTextSize(14);
+                tvAmount.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
+                tvAmount.setTypeface(null, android.graphics.Typeface.BOLD);
+
+                row.addView(tvFrom);
+                row.addView(tvArrow);
+                row.addView(tvTo);
+                row.addView(tvAmount);
+
+                settlementContainer.addView(row);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
